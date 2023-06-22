@@ -61,19 +61,17 @@ class Kintone:
   def __init__(
       self,
       domain: str = None,
-      app_id: str = None,
+      app_ids: list[str] = None,
       auth_type: dict[str, str] = None,
       query: str = None,
       fields: str = None,
-      guest_space_id: str = None,
       **kwargs: Any,
   ) -> None:
     self.domain = domain
-    self.app_id = app_id
+    self.app_ids = app_ids
     self.auth_option = auth_type.get('option', None)
     self.username = auth_type.get('username', None)
     self.password = auth_type.get('password', None)
-    self.guest_space_id = guest_space_id
     self.query = query
     self.fields = fields
 
@@ -86,23 +84,59 @@ class Kintone:
     self.session.mount("https://", adapter)
 
   def authentication(self):
-    if self.guest_space_id is not None:
-      authentication_url = f"https://{self.domain}.cybozu.com/k/guest/{self.guest_space_id}/v1/app.json"
-    else:
-      authentication_url = f"https://{self.domain}.cybozu.com/k/v1/app.json"
-    authentication_params = {
-        "id": self.app_id
-    }
+    # Get all apps of this account
+    get_apps_url = f"https://{self.domain}.cybozu.com/k/v1/apps.json"
 
     # Authentication request does not need retry handler
-    resp = self.session.get(
-        url=authentication_url,
-        params=authentication_params,
+    app_list_res = self.session.get(
+        url=get_apps_url,
         headers={"X-Cybozu-Authorization": self._get_authorization_key()}
     )
-    if resp.status_code is not SUCCESS_CODE:
-      error = resp.json()
-      self.authentication_error = self._get_error_message(error['code'])
+    if len(app_list_res.json()['apps']) == 0:
+      self.authentication_error = 'このアカウントでアプリがありません。'
+    else:
+      app_list = app_list_res.json()['apps']
+      filtered_app_list = [{"appId": obj["appId"], "spaceId": obj["spaceId"]}
+                           for obj in app_list]
+      for item in self.app_ids:
+        exists = any(app['appId'] == item for app in filtered_app_list)
+        if exists:
+          matching_app = next(
+              app for app in filtered_app_list if app['appId'] == item)
+          if matching_app['spaceId'] is None:
+            # This app belongs to the current Organization
+            break
+          else:
+            # Check if this app is in Public Space
+            get_space_detail_url = f"https://{self.domain}.cybozu.com/k/v1/space.json"
+            params = {
+                "id": matching_app['spaceId']
+            }
+            is_guest_app = self.session.get(
+                url=get_space_detail_url,
+                params=params,
+                headers={"X-Cybozu-Authorization": self._get_authorization_key()}
+            )['isGuest']
+            if is_guest_app:
+              self.authentication_error = 'ゲストスペース内のアプリがあります。'
+            else:
+              continue
+        else:
+          self.authentication_error = '存在していないアプリのアプリIDがあります。'
+          break
+    #   app_list = app_list_res.json()['apps']
+    #   filtered_app_list = [{"appId": obj["appId"], "spaceId": obj["spaceId"]}
+    #         for obj in app_list]
+    #   for item in self.app_ids:
+    #     if any(app['appId'] == item for app in filtered_app_list):
+
+    #         print(f"appId {item} exists in array A.")
+    #     else:
+    #         self.authentication_error = '存在していないアプリのアプリIDがあります。'
+    #         break
+    # if resp.status_code is not SUCCESS_CODE:
+    #   error = resp.json()
+    #   self.authentication_error = self._get_error_message(error['code'])
 
   @default_backoff_handler(max_tries=5, factor=5)
   def _make_request(

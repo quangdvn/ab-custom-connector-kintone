@@ -7,10 +7,12 @@ connectionSpecification:
     - app_id
     - auth_type
   properties:
-    app_id:
-      title: アプリ ID
-      description: アプリ ID
-      type: string
+    app_ids:
+      title: アプリ IDs
+      description: アプリ IDs
+      type: array
+      items:
+        type: string
       order: 1
       pattern: \d+
     auth_type:
@@ -43,19 +45,13 @@ connectionSpecification:
       title: 認証方式
       default: username_password
       description: kintoneで認証方式の選択肢です。
-    guest_space_id:
-      title: アプリ ID
-      description: アプリ ID
-      pattern: \d+
-      type: string
-      order: 3
     query:
       title: アプリ ID
       description: アプリ ID
       type: string
-      order: 4
+      order: 3
     fields:
       title: アプリ ID
       description: アプリ ID
       type: string
-      order: 5
+      order: 4
