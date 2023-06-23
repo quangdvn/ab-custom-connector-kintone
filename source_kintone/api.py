@@ -68,7 +68,8 @@ class Kintone:
       **kwargs: Any,
   ) -> None:
     self.domain = domain
-    self.app_ids = app_ids
+    # Make an unique array
+    self.app_ids = list(set(app_ids))
     self.auth_option = auth_type.get('option', None)
     self.username = auth_type.get('username', None)
     self.password = auth_type.get('password', None)
@@ -90,40 +91,61 @@ class Kintone:
     # Authentication request does not need retry handler
     app_list_res = self.session.get(
         url=get_apps_url,
-        headers={"X-Cybozu-Authorization": self._get_authorization_key()}
+        headers=self._get_standard_headers()
     )
-    if len(app_list_res.json()['apps']) == 0:
+    app_list = app_list_res.json().get('apps', [])
+    if len(app_list) == 0:
       self.authentication_error = 'このアカウントでアプリがありません。'
-    else:
-      app_list = app_list_res.json()['apps']
-      filtered_app_list = [{"appId": obj["appId"], "spaceId": obj["spaceId"]}
-                           for obj in app_list]
-      for item in self.app_ids:
-        exists = any(app['appId'] == item for app in filtered_app_list)
-        if exists:
-          matching_app = next(
-              app for app in filtered_app_list if app['appId'] == item)
-          if matching_app['spaceId'] is None:
-            # This app belongs to the current Organization
-            break
-          else:
-            # Check if this app is in Public Space
-            get_space_detail_url = f"https://{self.domain}.cybozu.com/k/v1/space.json"
-            params = {
-                "id": matching_app['spaceId']
-            }
-            is_guest_app = self.session.get(
-                url=get_space_detail_url,
-                params=params,
-                headers={"X-Cybozu-Authorization": self._get_authorization_key()}
-            )['isGuest']
-            if is_guest_app:
-              self.authentication_error = 'ゲストスペース内のアプリがあります。'
-            else:
-              continue
-        else:
-          self.authentication_error = '存在していないアプリのアプリIDがあります。'
-          break
+      return
+
+    filtered_app_list = [{"appId": obj["appId"], "spaceId": obj["spaceId"]}
+                         for obj in app_list]
+    for item in self.app_ids:
+      matching_app = next(
+          (app for app in filtered_app_list if app['appId'] == item), None)
+      if matching_app is None:
+        self.authentication_error = '存在していないアプリのアプリIDがあります。'
+        break
+      if matching_app['spaceId'] is None:
+        # This app belongs to the current Organization
+        continue
+      # Check if this app is in Public Space
+      get_space_detail_url = f"https://{self.domain}.cybozu.com/k/v1/space.json"
+      params = {"id": matching_app['spaceId']}
+
+      space_detail_res = self.session.get(
+          url=get_space_detail_url,
+          params=params,
+          headers=self._get_standard_headers()
+      )
+      if space_detail_res.status_code is not SUCCESS_CODE:
+        self.authentication_error = 'ゲストスペース内のアプリがあります。'
+        break
+
+    # if exists:
+    #   matching_app = next(
+    #       app for app in filtered_app_list if app['appId'] == item)
+    #   if matching_app['spaceId'] is None:
+    #     # This app belongs to the current Organization
+    #     break
+    #   else:
+    #     # Check if this app is in Public Space
+    #     get_space_detail_url = f"https://{self.domain}.cybozu.com/k/v1/space.json"
+    #     params = {
+    #         "id": matching_app['spaceId']
+    #     }
+    #     is_guest_app = self.session.get(
+    #         url=get_space_detail_url,
+    #         params=params,
+    #         headers={"X-Cybozu-Authorization": self._get_authorization_key()}
+    #     )['isGuest']
+    #     if is_guest_app:
+    #       self.authentication_error = 'ゲストスペース内のアプリがあります。'
+    #     else:
+    #       continue
+    # else:
+    #   self.authentication_error = '存在していないアプリのアプリIDがあります。'
+    #   break
     #   app_list = app_list_res.json()['apps']
     #   filtered_app_list = [{"appId": obj["appId"], "spaceId": obj["spaceId"]}
     #         for obj in app_list]
@@ -162,8 +184,7 @@ class Kintone:
 
   def _get_standard_headers(self) -> Mapping[str, str]:
     return {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer {}".format(self.access_token)
+        "X-Cybozu-Authorization": self._get_authorization_key()
     }
 
   def _get_error_message(self, error_code: str) -> str:

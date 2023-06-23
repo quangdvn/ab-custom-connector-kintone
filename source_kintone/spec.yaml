@@ -4,7 +4,7 @@ connectionSpecification:
   title: kintone Spec
   type: object
   required:
-    - app_id
+    - app_ids
     - auth_type
   properties:
     app_ids:
@@ -13,8 +13,9 @@ connectionSpecification:
       type: array
       items:
         type: string
+        minLength: 1
+        pattern: \d+
       order: 1
-      pattern: \d+
     auth_type:
       type: object
       oneOf:

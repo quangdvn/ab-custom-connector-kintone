@@ -7,12 +7,20 @@ from airbyte_cdk.sources.streams import Stream
 from airbyte_cdk.sources.streams.http import HttpStream
 from airbyte_cdk.sources.streams.http.auth import TokenAuthenticator
 
+from source_kintone.auth import KintoneAuthenticator
+from source_kintone.mapping import KINTONE_TO_AIRBYTE_MAPPING
+
 
 # Basic full refresh stream
 class KintoneStream(HttpStream, ABC):
-  url_base = "https://"
+  url_base = ""
+
+  @property
+  def authenticator(self) -> KintoneAuthenticator:
+    return self._session.auth
 
   def next_page_token(self, response: requests.Response) -> Optional[Mapping[str, Any]]:
+    """kintone API does not return any information to support pagination"""
     return None
 
   def request_params(
@@ -23,23 +31,34 @@ class KintoneStream(HttpStream, ABC):
   def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
     yield {}
 
-# Get all apps
 
 
-class AppList(KintoneStream):
-  def __init__(self, domain: str, ** kwargs):
+class AppSchema(KintoneStream):
+  primary_key = None
+
+  def __init__(self, domain: str, app_id: str, ** kwargs):
     super().__init__(**kwargs)
     self.domain = domain
+    self.app_id = app_id
 
   def path(self, **kwargs) -> str:
-    return f"{self.domain}/.cybozu.com/k/v1/apps.json"
+    return f"https://{self.domain}.cybozu.com/k/v1/app/form/fields.json?app={self.app_id}&lang=ja"
 
   def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
-    # Use the generator function to iterate over the rows of data
-    response_json = response.json()
-    yield from response_json
-
-# Get all space apps
+    app_schema = response.json()['properties']
+    for key, value in app_schema.items():
+      try:
+        field_name = key
+        field_type = value['type']
+        field_schema = {
+            field_name: KINTONE_TO_AIRBYTE_MAPPING[field_type]}
+        yield field_schema
+      except Exception as error:
+        msg = f"""Encountered an exception parsing schema for kintone type: {field_type}\n
+                  Is "{field_type}" defined in the mapping between kintone and JSON Schema? """
+        self.logger.exception(msg)
+        # Don't eat the exception, raise it again as this needs to be fixed
+        raise error
 
 
 class AppDetail(KintoneStream):
@@ -47,24 +66,41 @@ class AppDetail(KintoneStream):
   #  primary_key is not used as we don't do incremental syncs - https://docs.airbyte.com/understanding-airbyte/connections/
   primary_key = None
 
-  def __init__(self, domain: str, app_ids: list[str], guest_space_id=None, ** kwargs):
+  def __init__(self, domain: str, app_id: str, ** kwargs):
     super().__init__(**kwargs)
     self.domain = domain
-    self.app_ids = app_ids
+    self.app_id = app_id
 
   @property
   def name(self) -> str:
-    if self.guest_space_id:
-      return f"GUEST_SPACE_{self.guest_space_id}_APP_{self.app_id}"
-    return f"PUBLIC_SPACE_APP_{self.app_id}"
+    return f"APP_{self.app_id}"
 
   def path(self, **kwargs) -> str:
-    return f"{self.domain}.cybozu.com/k/v1/apps.json"
+    return f"https://{self.domain}.cybozu.com/k/v1/apps.json"
 
   def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
     # Use the generator function to iterate over the rows of data
     response_json = response.json()
     yield from response_json
+
+  def get_json_schema(self) -> Mapping[str, Any]:
+    app_schema_stream = AppSchema(
+        authenticator=self.authenticator, domain=self.domain, app_id=self.app_id)
+    app_schema_records = app_schema_stream.read_records(
+        sync_mode="full_refresh")
+
+    # Each record corresponds to a property in the JSON Schema
+    # Loop over each of these properties and add it to the JSON Schema
+    json_schema = {}
+    for schema_property in app_schema_records:
+      json_schema.update(schema_property)
+
+    return {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": True,
+        "type": "object",
+        "properties": json_schema,
+    }
 
 
 class Customers(KintoneStream):

@@ -8,6 +8,7 @@ from airbyte_cdk.sources.streams import Stream
 from airbyte_cdk.sources.streams.http.auth import BasicHttpAuthenticator
 
 from source_kintone.api import Kintone
+from source_kintone.auth import KintoneAuthenticator
 from source_kintone.streams import AppDetail
 
 
@@ -23,14 +24,13 @@ class SourceKintone(AbstractSource):
     return kintone
 
   @staticmethod
-  def _get_basic_authenticator(config):
+  def _get_kintone_authenticator(config):
     username = config['auth_type']['username']
     password = config['auth_type']['password']
     if not username or not password:
       raise Exception(
           "username and passowrd are required properties")
-
-    auth = BasicHttpAuthenticator(username=username, password=password)
+    auth = KintoneAuthenticator(username=username, password=password)
     return auth
 
   def check_connection(self, logger, config) -> Tuple[bool, any]:
@@ -49,17 +49,13 @@ class SourceKintone(AbstractSource):
         return False, "API Call limit is exceeded"
       return False, "System error"
 
-#   def generate_stream(self, authenticator: BasicHttpAuthenticator, domain: str, app_id: str, guest_space_id: str = None) -> Stream:
-#     return AppDetail(authenticator=authenticator, domain=domain, app_id=app_id, guest_space_id=guest_space_id, )
-
   def streams(self, config: Mapping[str, Any]) -> List[Stream]:
-    auth = self._get_basic_authenticator(config)
+    auth = self._get_kintone_authenticator(config)
     domain = config.get('domain')
-    app_id = config.get('app_id')
-    guest_space_id = config.get('guest_space_id', None)
-
-    stream = AppDetail(authenticator=auth,
-                       domain=domain,
-                       app_id=app_id,
-                       guest_space_id=guest_space_id)
-    return [stream]
+    app_ids = config.get('app_ids')
+    streams: List[Stream] = []
+    for app_id in app_ids:
+      streams.append(AppDetail(authenticator=auth,
+                               domain=domain,
+                               app_id=app_id))
+    return streams
