@@ -17,8 +17,6 @@ class KintoneAuthenticator(AbstractHeaderAuthenticator):
     return f"{self._token}"
 
   def __init__(self, username: str, password: str = "", auth_method: str = "Basic", auth_header: str = "X-Cybozu-Authorization"):
-    # auth_string = f"{username}:{password}".encode("utf8")
-    # b64_encoded = base64.b64encode(auth_string).decode("utf8")
     self._auth_header = auth_header
     self._auth_method = auth_method
     self._token = encode_to_base64(f"{username}:{password}")

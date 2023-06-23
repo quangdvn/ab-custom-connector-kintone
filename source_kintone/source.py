@@ -5,7 +5,6 @@ from typing import (Any, Iterable, List, Mapping, MutableMapping, Optional,
 import requests
 from airbyte_cdk.sources import AbstractSource
 from airbyte_cdk.sources.streams import Stream
-from airbyte_cdk.sources.streams.http.auth import BasicHttpAuthenticator
 
 from source_kintone.api import Kintone
 from source_kintone.auth import KintoneAuthenticator
