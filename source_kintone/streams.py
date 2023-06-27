@@ -39,7 +39,7 @@ class AppSchema(KintoneStream):
     self.app_id = app_id
 
   def path(self, **kwargs) -> str:
-    return f"https://{self.domain}.cybozu.com/k/v1/app/form/fields.json?app={self.app_id}&lang=ja"
+    return f"{self.domain}/k/v1/app/form/fields.json?app={self.app_id}&lang=ja"
 
   def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
     app_schema = response.json()['properties']
@@ -61,6 +61,8 @@ class AppSchema(KintoneStream):
 class AppDetail(KintoneStream):
   http_method = "GET"
   primary_key = None
+  page_size = 500
+  current_offset = 0
 
   def __init__(self, domain: str, app_id: str, ** kwargs):
     super().__init__(**kwargs)
@@ -72,11 +74,45 @@ class AppDetail(KintoneStream):
     return f"APP_{self.app_id}"
 
   def path(self, **kwargs) -> str:
-    return f"https://{self.domain}.cybozu.com/k/v1/apps.json"
+    return f"{self.domain}/k/v1/records.json?app={self.app_id}&totalCount=true"
+
+  def next_page_token(self, response: requests.Response) -> Mapping[str, Any]:
+    offset = 0
+    total_records = int(response.json()['totalCount'])
+
+    # Assign offset value on every stream read
+    if total_records - AppDetail.current_offset > AppDetail.page_size:
+      offset = AppDetail.current_offset + AppDetail.page_size
+      AppDetail.current_offset += AppDetail.page_size
+      return {"query": f"limit {AppDetail.page_size} offset {offset}"}
+
+    # Last stream read
+    elif total_records - AppDetail.current_offset < AppDetail.page_size:
+      return {}
+
+  def request_params(
+      self,
+      stream_state: Mapping[str, Any],
+      stream_slice: Mapping[str, Any] = None,
+      next_page_token: Mapping[str, Any] = None,
+  ) -> MutableMapping[str, Any]:
+    params = {}
+
+    # Handle pagination by inserting the next page's token in the request parameters
+    # First stream read
+    if AppDetail.current_offset == 0:
+      params.update({"query": f"limit {AppDetail.page_size} offset 0"})
+    else:
+      if next_page_token:
+        params.update(next_page_token)
+      # Final stream read, next_page_token is None
+      params.update(
+          {"query": f"limit {AppDetail.page_size} offset {AppDetail.current_offset}"})
+    return params
 
   def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
-    response_json = response.json()
-    yield from response_json
+    app_records = response.json()['records']
+    yield from [{key: value["value"] for key, value in item.items()} for item in app_records]
 
   def get_json_schema(self) -> Mapping[str, Any]:
     app_schema_stream = AppSchema(
@@ -86,10 +122,12 @@ class AppDetail(KintoneStream):
 
     # Each record corresponds to a property in the JSON Schema
     # Loop over each of these properties and add it to the JSON Schema
-    json_schema = {}
+    json_schema = {
+        "$id": {"type": ["null", "string"]},
+        "$revision": {"type": ["null", "string"]},
+    }
     for schema_property in app_schema_records:
       json_schema.update(schema_property)
-
     return {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": True,

@@ -44,13 +44,17 @@ KINTONE_TO_AIRBYTE_MAPPING = {
     "RECORD_NUMBER": {"type": ["null", "string"]},
     "__ID__": {"type": ["null", "string"]},
     "__REVISION__": {"type": ["null", "string"]},
-    "CREATOR": {"type": ["null", "string"]},
+    # Assign as array of objects with undefined properties for now
+    "CREATOR": {"type": ["null", "object"], "additionalProperties": True},
+
+    # Assign as array of objects with undefined properties for now
+    "MODIFIER": {"type": ["null", "object"], "additionalProperties": True},
+
     "CREATED_TIME": {"type": ["null", "string"], "format": "date-time", "airbyte_type": "timestamp_with_timezone"},
-    "MODIFIER": {"type": ["null", "string"]},
     "UPDATED_TIME": {"type": ["null", "string"], "format": "date-time", "airbyte_type": "timestamp_with_timezone"},
+
     # Assign as string for now, maybe a Look-up
     "SINGLE_LINE_TEXT": {"type": ["null", "string"]},
-
     # Assign as number and string for now, maybe a Look-up
     "NUMBER": {"type": ["null", "number", "string"]},
 
@@ -61,8 +65,10 @@ KINTONE_TO_AIRBYTE_MAPPING = {
 
     # Assign as array of strings for now
     "CHECK_BOX": {"type": ["null", "array"], "items": {"type": "string", }},
-    "RADIO_BUTTON": {"type": ["null", "string"]},  # Assign as string for now
-    "DROP_DOWN": {"type": ["null", "string"]},  # Assign as string for now
+    # Assign as string for now
+    "RADIO_BUTTON": {"type": ["null", "string"]},
+    # Assign as string for now
+    "DROP_DOWN": {"type": ["null", "string"]},
 
     # Assign as array of strings for now
     "MULTI_SELECT": {"type": ["null", "array"], "items": {"type": "string", }},

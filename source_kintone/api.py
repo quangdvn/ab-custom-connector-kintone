@@ -64,17 +64,13 @@ class Kintone:
       app_ids: list[str] = None,
       auth_type: dict[str, str] = None,
       query: str = None,
-      fields: str = None,
       **kwargs: Any,
   ) -> None:
     self.domain = domain
-    # Make an unique array
-    self.app_ids = list(set(app_ids))
+    self.app_ids = app_ids
     self.auth_option = auth_type.get('option', None)
     self.username = auth_type.get('username', None)
     self.password = auth_type.get('password', None)
-    self.query = query
-    self.fields = fields
 
     self.authentication_error = None
     self.session = requests.Session()
@@ -86,7 +82,7 @@ class Kintone:
 
   def authentication(self):
     # Get all apps of this account
-    get_apps_url = f"https://{self.domain}.cybozu.com/k/v1/apps.json"
+    get_apps_url = f"{self.domain}/k/v1/apps.json"
 
     # Authentication request does not need retry handler
     app_list_res = self.session.get(
@@ -110,7 +106,7 @@ class Kintone:
         # This app belongs to the current Organization
         continue
       # Check if this app is in Public Space
-      get_space_detail_url = f"https://{self.domain}.cybozu.com/k/v1/space.json"
+      get_space_detail_url = f"{self.domain}/k/v1/space.json"
       params = {"id": matching_app['spaceId']}
 
       space_detail_res = self.session.get(

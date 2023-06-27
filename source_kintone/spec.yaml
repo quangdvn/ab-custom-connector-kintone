@@ -4,18 +4,33 @@ connectionSpecification:
   title: kintone Spec
   type: object
   required:
+    - domain
     - app_ids
     - auth_type
   properties:
+    domain:
+      title: ドメイン名
+      description: >-
+        ご利用環境のアクセスURLに利用しています。アクセスURLから確認できます。
+        例：https://sample.cybozu.com
+      type: string
+      order: 1
+      pattern: https?:\/\/(?:[\w-]+\.)+[a-zA-Z]{2,}(?:(?:\/\S*)|(?!\/))
     app_ids:
-      title: アプリ IDs
-      description: アプリ IDs
+      title: アプリIDs
+      description: >-
+        同期オブジェクトとなるアプリIDのリスト。
+        これらのアプリデータを同期するために1つ以上明示的に指定します。エンターキーで次のアプリIDを入力
       type: array
       items:
         type: string
-        minLength: 1
-        pattern: \d+
-      order: 1
+      minItems: 0
+      uniqueItems: true
+      examples:
+        - 1
+        - 2
+        - 3
+      order: 2
     auth_type:
       type: object
       oneOf:
@@ -34,25 +49,23 @@ connectionSpecification:
             username:
               type: string
               order: 1
-              title: kintone
-              description: Yahoo広告APIからデータを取得する際に使用するYahoo広告の検索広告のアカウントIDです。
+              title: ログイン名
+              description: kintoneでアクセスためログイン名
             password:
               type: string
               order: 2
-              title: Yahoo広告のディスプレイ広告のアカウントID
+              title: パスワード
               airbyte_secret: true
-              description: Yahoo広告APIからデータを取得する際に使用するYahoo広告のディスプレイ広告のアカウントIDです。
-      order: 2
+              description: kintoneでアクセスためパスワード
+      order: 3
       title: 認証方式
       default: username_password
       description: kintoneで認証方式の選択肢です。
-    query:
-      title: アプリ ID
-      description: アプリ ID
-      type: string
-      order: 3
-    fields:
-      title: アプリ ID
-      description: アプリ ID
-      type: string
-      order: 4
+    # query:
+    #   title: クエリ
+    #   description: >-
+    #     条件を絞り込むクエリで利用できる演算子／関数／オプションです。
+    #     演算子／関数／オプションは組み合わせて使用できます。
+    #     クエリの記述例は<a href="https://cybozu.dev/ja/kintone/docs/overview/query/#sample-query">サンプルクエリ</a>を参照してください。
+    #   type: string
+    #   order: 4
