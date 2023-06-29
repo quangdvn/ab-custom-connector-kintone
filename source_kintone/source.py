@@ -5,9 +5,10 @@ from typing import (Any, Iterable, List, Mapping, MutableMapping, Optional,
 import requests
 from airbyte_cdk.sources import AbstractSource
 from airbyte_cdk.sources.streams import Stream
-from airbyte_cdk.sources.streams.http.auth import TokenAuthenticator
 
 from source_kintone.api import Kintone
+from source_kintone.auth import KintoneAuthenticator
+from source_kintone.streams import AppDetail
 
 
 # Source
@@ -20,6 +21,16 @@ class SourceKintone(AbstractSource):
     kintone = Kintone(**config)
     kintone.authentication()
     return kintone
+
+  @staticmethod
+  def _get_kintone_authenticator(config):
+    username = config['auth_type']['username']
+    password = config['auth_type']['password']
+    if not username or not password:
+      raise Exception(
+          "username and passowrd are required properties")
+    auth = KintoneAuthenticator(username=username, password=password)
+    return auth
 
   def check_connection(self, logger, config) -> Tuple[bool, any]:
     try:
@@ -35,14 +46,15 @@ class SourceKintone(AbstractSource):
         logger.warn(
             f"API Call limit is exceeded. Error message: '{error_data.get('message')}'")
         return False, "API Call limit is exceeded"
+      return False, "System error"
 
   def streams(self, config: Mapping[str, Any]) -> List[Stream]:
-    """
-    TODO: Replace the streams below with your own streams.
-
-    :param config: A Mapping of the user input configuration as defined in the connector spec.
-    """
-    # TODO remove the authenticator if not required.
-    # Oauth2Authenticator is also available if you need oauth support
-    auth = TokenAuthenticator(token="api_key")
-    return []
+    auth = self._get_kintone_authenticator(config)
+    domain = config.get('domain')
+    app_ids = config.get('app_ids')
+    streams: List[Stream] = []
+    for app_id in app_ids:
+      streams.append(AppDetail(authenticator=auth,
+                               domain=domain,
+                               app_id=app_id))
+    return streams

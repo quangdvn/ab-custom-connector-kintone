@@ -3,174 +3,134 @@ from typing import (Any, Iterable, List, Mapping, MutableMapping, Optional,
                     Tuple)
 
 import requests
-
-from airbyte_cdk.sources.streams import Stream
 from airbyte_cdk.sources.streams.http import HttpStream
-from airbyte_cdk.sources.streams.http.auth import TokenAuthenticator
 
-"""
-TODO: Most comments in this class are instructive and should be deleted after the source is implemented.
-
-This file provides a stubbed example of how to use the Airbyte CDK to develop both a source connector which supports full refresh or and an
-incremental syncs from an HTTP API.
-
-The various TODOs are both implementation hints and steps - fulfilling all the TODOs should be sufficient to implement one basic and one incremental
-stream from a source. This pattern is the same one used by Airbyte internally to implement connectors.
-
-The approach here is not authoritative, and devs are free to use their own judgement.
-
-There are additional required TODOs in the files within the integration_tests folder and the spec.yaml file.
-"""
+from source_kintone.auth import KintoneAuthenticator
+from source_kintone.mapping import KINTONE_TO_AIRBYTE_MAPPING
 
 
 # Basic full refresh stream
 class KintoneStream(HttpStream, ABC):
-  """
-  TODO remove this comment
+  url_base = ""
 
-  This class represents a stream output by the connector.
-  This is an abstract base class meant to contain all the common functionality at the API level e.g: the API base URL, pagination strategy,
-  parsing responses etc..
-
-  Each stream should extend this class (or another abstract subclass of it) to specify behavior unique to that stream.
-
-  Typically for REST APIs each stream corresponds to a resource in the API. For example if the API
-  contains the endpoints
-      - GET v1/customers
-      - GET v1/employees
-
-  then you should have three classes:
-  `class KintoneStream(HttpStream, ABC)` which is the current class
-  `class Customers(KintoneStream)` contains behavior to pull data for customers using v1/customers
-  `class Employees(KintoneStream)` contains behavior to pull data for employees using v1/employees
-
-  If some streams implement incremental sync, it is typical to create another class
-  `class IncrementalKintoneStream((KintoneStream), ABC)` then have concrete stream implementations extend it. An example
-  is provided below.
-
-  See the reference docs for the full list of configurable options.
-  """
-
-  # TODO: Fill in the url base. Required.
-  url_base = "https://example-api.com/v1/"
+  @property
+  def authenticator(self) -> KintoneAuthenticator:
+    return self._session.auth
 
   def next_page_token(self, response: requests.Response) -> Optional[Mapping[str, Any]]:
-    """
-    TODO: Override this method to define a pagination strategy. If you will not be using pagination, no action is required - just return None.
-
-    This method should return a Mapping (e.g: dict) containing whatever information required to make paginated requests. This dict is passed
-    to most other methods in this class to help you form headers, request bodies, query params, etc..
-
-    For example, if the API accepts a 'page' parameter to determine which page of the result to return, and a response from the API contains a
-    'page' number, then this method should probably return a dict {'page': response.json()['page'] + 1} to increment the page count by 1.
-    The request_params method should then read the input next_page_token and set the 'page' param to next_page_token['page'].
-
-    :param response: the most recent response from the API
-    :return If there is another page in the result, a mapping (e.g: dict) containing information needed to query the next page in the response.
-            If there are no more pages in the result, return None.
-    """
+    """kintone API does not return any information to support pagination"""
     return None
 
   def request_params(
       self, stream_state: Mapping[str, Any], stream_slice: Mapping[str, any] = None, next_page_token: Mapping[str, Any] = None
   ) -> MutableMapping[str, Any]:
-    """
-    TODO: Override this method to define any query parameters to be set. Remove this method if you don't need to define request params.
-    Usually contains common params e.g. pagination size etc.
-    """
     return {}
 
   def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
-    """
-    TODO: Override this method to define how a response is parsed.
-    :return an iterable containing each record in the response
-    """
     yield {}
 
 
-class Customers(KintoneStream):
-  """
-  TODO: Change class name to match the table/data source this stream corresponds to.
-  """
+class AppSchema(KintoneStream):
+  primary_key = None
 
-  # TODO: Fill in the primary key. Required. This is usually a unique field in the stream, like an ID or a timestamp.
-  primary_key = "customer_id"
-
-  def path(
-      self, stream_state: Mapping[str, Any] = None, stream_slice: Mapping[str, Any] = None, next_page_token: Mapping[str, Any] = None
-  ) -> str:
-    """
-    TODO: Override this method to define the path this stream corresponds to. E.g. if the url is https://example-api.com/v1/customers then this
-    should return "customers". Required.
-    """
-    return "customers"
-
-
-# Basic incremental stream
-class IncrementalKintoneStream(KintoneStream, ABC):
-  """
-  TODO fill in details of this class to implement functionality related to incremental syncs for your connector.
-       if you do not need to implement incremental sync for any streams, remove this class.
-  """
-
-  # TODO: Fill in to checkpoint stream reads after N records. This prevents re-reading of data if the stream fails for any reason.
-  state_checkpoint_interval = None
-
-  @property
-  def cursor_field(self) -> str:
-    """
-    TODO
-    Override to return the cursor field used by this stream e.g: an API entity might always use created_at as the cursor field. This is
-    usually id or date based. This field's presence tells the framework this in an incremental stream. Required for incremental.
-
-    :return str: The name of the cursor field.
-    """
-    return []
-
-  def get_updated_state(self, current_stream_state: MutableMapping[str, Any], latest_record: Mapping[str, Any]) -> Mapping[str, Any]:
-    """
-    Override to determine the latest state after reading the latest record. This typically compared the cursor_field from the latest record and
-    the current state and picks the 'most' recent cursor. This is how a stream's state is determined. Required for incremental.
-    """
-    return {}
-
-
-class Employees(IncrementalKintoneStream):
-  """
-  TODO: Change class name to match the table/data source this stream corresponds to.
-  """
-
-  # TODO: Fill in the cursor_field. Required.
-  cursor_field = "start_date"
-
-  # TODO: Fill in the primary key. Required. This is usually a unique field in the stream, like an ID or a timestamp.
-  primary_key = "employee_id"
+  def __init__(self, domain: str, app_id: str, ** kwargs):
+    super().__init__(**kwargs)
+    self.domain = domain
+    self.app_id = app_id
 
   def path(self, **kwargs) -> str:
-    """
-    TODO: Override this method to define the path this stream corresponds to. E.g. if the url is https://example-api.com/v1/employees then this should
-    return "single". Required.
-    """
-    return "employees"
+    return f"{self.domain}/k/v1/app/form/fields.json?app={self.app_id}&lang=ja"
 
-  def stream_slices(self, stream_state: Mapping[str, Any] = None, **kwargs) -> Iterable[Optional[Mapping[str, any]]]:
-    """
-    TODO: Optionally override this method to define this stream's slices. If slicing is not needed, delete this method.
+  def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
+    app_schema = response.json()['properties']
+    for key, value in app_schema.items():
+      try:
+        field_name = key
+        field_type = value['type']
+        field_schema = {
+            field_name: KINTONE_TO_AIRBYTE_MAPPING[field_type]}
+        yield field_schema
+      except Exception as error:
+        msg = f"""Encountered an exception parsing schema for kintone type: {field_type}\n
+                  Is "{field_type}" defined in the mapping between kintone and JSON Schema? """
+        self.logger.exception(msg)
+        # Don't eat the exception, raise it again as this needs to be fixed
+        raise error
 
-    Slices control when state is saved. Specifically, state is saved after a slice has been fully read.
-    This is useful if the API offers reads by groups or filters, and can be paired with the state object to make reads efficient. See the "concepts"
-    section of the docs for more information.
 
-    The function is called before reading any records in a stream. It returns an Iterable of dicts, each containing the
-    necessary data to craft a request for a slice. The stream state is usually referenced to determine what slices need to be created.
-    This means that data in a slice is usually closely related to a stream's cursor_field and stream_state.
+class AppDetail(KintoneStream):
+  http_method = "GET"
+  primary_key = None
+  page_size = 500
+  current_offset = 0
 
-    An HTTP request is made for each returned slice. The same slice can be accessed in the path, request_params and request_header functions to help
-    craft that specific request.
+  def __init__(self, domain: str, app_id: str, ** kwargs):
+    super().__init__(**kwargs)
+    self.domain = domain
+    self.app_id = app_id
 
-    For example, if https://example-api.com/v1/employees offers a date query params that returns data for that particular day, one way to implement
-    this would be to consult the stream state object for the last synced date, then return a slice containing each date from the last synced date
-    till now. The request_params function would then grab the date from the stream_slice and make it part of the request by injecting it into
-    the date query param.
-    """
-    raise NotImplementedError("Implement stream slices or delete this method!")
+  @property
+  def name(self) -> str:
+    return f"APP_{self.app_id}"
+
+  def path(self, **kwargs) -> str:
+    return f"{self.domain}/k/v1/records.json?app={self.app_id}&totalCount=true"
+
+  def next_page_token(self, response: requests.Response) -> Mapping[str, Any]:
+    offset = 0
+    total_records = int(response.json()['totalCount'])
+
+    # Assign offset value on every stream read
+    if total_records - AppDetail.current_offset > AppDetail.page_size:
+      offset = AppDetail.current_offset + AppDetail.page_size
+      AppDetail.current_offset += AppDetail.page_size
+      return {"query": f"limit {AppDetail.page_size} offset {offset}"}
+
+    # Last stream read
+    elif total_records - AppDetail.current_offset < AppDetail.page_size:
+      return {}
+
+  def request_params(
+      self,
+      stream_state: Mapping[str, Any],
+      stream_slice: Mapping[str, Any] = None,
+      next_page_token: Mapping[str, Any] = None,
+  ) -> MutableMapping[str, Any]:
+    params = {}
+
+    # Handle pagination by inserting the next page's token in the request parameters
+    # First stream read
+    if AppDetail.current_offset == 0:
+      params.update({"query": f"limit {AppDetail.page_size} offset 0"})
+    else:
+      if next_page_token:
+        params.update(next_page_token)
+      # Final stream read, next_page_token is None
+      params.update(
+          {"query": f"limit {AppDetail.page_size} offset {AppDetail.current_offset}"})
+    return params
+
+  def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
+    app_records = response.json()['records']
+    yield from [{key: value["value"] for key, value in item.items()} for item in app_records]
+
+  def get_json_schema(self) -> Mapping[str, Any]:
+    app_schema_stream = AppSchema(
+        authenticator=self.authenticator, domain=self.domain, app_id=self.app_id)
+    app_schema_records = app_schema_stream.read_records(
+        sync_mode="full_refresh")
+
+    # Each record corresponds to a property in the JSON Schema
+    # Loop over each of these properties and add it to the JSON Schema
+    json_schema = {
+        "$id": {"type": ["null", "string"]},
+        "$revision": {"type": ["null", "string"]},
+    }
+    for schema_property in app_schema_records:
+      json_schema.update(schema_property)
+    return {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": True,
+        "type": "object",
+        "properties": json_schema,
+    }
