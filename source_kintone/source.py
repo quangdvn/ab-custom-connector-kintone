@@ -52,9 +52,11 @@ class SourceKintone(AbstractSource):
     auth = self._get_kintone_authenticator(config)
     domain = config.get('domain')
     app_ids = config.get('app_ids')
+    include_label = config.get('include_label')
     streams: List[Stream] = []
     for app_id in app_ids:
       streams.append(AppDetail(authenticator=auth,
                                domain=domain,
-                               app_id=app_id))
+                               app_id=app_id,
+                               include_label=include_label))
     return streams
