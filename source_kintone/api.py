@@ -63,7 +63,7 @@ class Kintone:
       domain: str = None,
       app_ids: list[str] = None,
       auth_type: dict[str, str] = None,
-      query: str = None,
+      include_label: bool = None,
       **kwargs: Any,
   ) -> None:
     self.domain = domain
@@ -71,6 +71,7 @@ class Kintone:
     self.auth_option = auth_type.get('option', None)
     self.username = auth_type.get('username', None)
     self.password = auth_type.get('password', None)
+    self.include_label = include_label
 
     self.authentication_error = None
     self.session = requests.Session()
@@ -84,39 +85,45 @@ class Kintone:
     # Get all apps of this account
     get_apps_url = f"{self.domain}/k/v1/apps.json"
 
-    # Authentication request does not need retry handler
-    app_list_res = self.session.get(
-        url=get_apps_url,
-        headers=self._get_standard_headers()
-    )
-    app_list = app_list_res.json().get('apps', [])
-    if len(app_list) == 0:
-      self.authentication_error = 'このアカウントでアプリがありません。'
-      return
-
-    filtered_app_list = [{"appId": obj["appId"], "spaceId": obj["spaceId"]}
-                         for obj in app_list]
-    for item in self.app_ids:
-      matching_app = next(
-          (app for app in filtered_app_list if app['appId'] == item), None)
-      if matching_app is None:
-        self.authentication_error = '存在していないアプリのアプリIDがあります。'
-        break
-      if matching_app['spaceId'] is None:
-        # This app belongs to the current Organization
-        continue
-      # Check if this app is in Public Space
-      get_space_detail_url = f"{self.domain}/k/v1/space.json"
-      params = {"id": matching_app['spaceId']}
-
-      space_detail_res = self.session.get(
-          url=get_space_detail_url,
-          params=params,
+    try:
+      # Authentication request does not need retry handler
+      app_list_res = self.session.get(
+          url=get_apps_url,
           headers=self._get_standard_headers()
       )
-      if space_detail_res.status_code is not SUCCESS_CODE:
-        self.authentication_error = 'ゲストスペース内のアプリがあります。'
-        break
+      app_list_res.raise_for_status()
+      app_list = app_list_res.json().get('apps', [])
+      if len(app_list) == 0:
+        self.authentication_error = 'このアカウントでアプリがありません。'
+        return
+
+      filtered_app_list = [{"appId": obj["appId"], "spaceId": obj["spaceId"]}
+                           for obj in app_list]
+      for item in self.app_ids:
+        matching_app = next(
+            (app for app in filtered_app_list if app['appId'] == item), None)
+        if matching_app is None:
+          self.authentication_error = '存在していないアプリのアプリIDがあります。'
+          break
+        if matching_app['spaceId'] is None:
+          # This app belongs to the current Organization
+          continue
+        # Check if this app is in Public Space
+        get_space_detail_url = f"{self.domain}/k/v1/space.json"
+        params = {"id": matching_app['spaceId']}
+
+        space_detail_res = self.session.get(
+            url=get_space_detail_url,
+            params=params,
+            headers=self._get_standard_headers()
+        )
+        if space_detail_res.status_code is not SUCCESS_CODE:
+          self.authentication_error = 'ゲストスペース内のアプリがあります。'
+          break
+    except requests.exceptions.RequestException as err:
+      self.authentication_error = 'この情報では認証できません。'
+      self.logger.warn(f"API Error: {err.response.text}")
+      return
 
   @default_backoff_handler(max_tries=5, factor=5)
   def _make_request(

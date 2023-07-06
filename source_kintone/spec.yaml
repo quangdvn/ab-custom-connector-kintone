@@ -61,6 +61,12 @@ connectionSpecification:
       title: 認証方式
       default: username_password
       description: kintoneで認証方式の選択肢です。
+    include_label:
+      type: boolean
+      order: 4
+      title: ラベルを使用
+      default: false
+      description: フィールドラベルを使用してデータを取得します。ONに設定すると、kintoneはフィールドコードの代わりにフィールドラベルを使用してデータを同期します。
     # query:
     #   title: クエリ
     #   description: >-
