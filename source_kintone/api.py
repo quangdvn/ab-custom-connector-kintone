@@ -66,7 +66,7 @@ class Kintone:
       include_label: bool = None,
       **kwargs: Any,
   ) -> None:
-    self.domain = domain
+    self.domain = domain.rstrip("/") if domain.endswith("/") else domain
     self.app_ids = app_ids
     self.auth_option = auth_type.get('option', None)
     self.username = auth_type.get('username', None)
@@ -84,7 +84,6 @@ class Kintone:
   def authentication(self):
     # Get all apps of this account
     get_apps_url = f"{self.domain}/k/v1/apps.json"
-
     try:
       # Authentication request does not need retry handler
       app_list_res = self.session.get(
