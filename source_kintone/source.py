@@ -50,7 +50,8 @@ class SourceKintone(AbstractSource):
 
   def streams(self, config: Mapping[str, Any]) -> List[Stream]:
     auth = self._get_kintone_authenticator(config)
-    domain = config.get('domain')
+    domain: str = config.get('domain').rstrip(
+        "/") if config.get('domain').endswith("/") else config.get('domain')
     app_ids = config.get('app_ids')
     include_label = config.get('include_label')
     streams: List[Stream] = []
