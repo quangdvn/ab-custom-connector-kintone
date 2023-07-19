@@ -9,8 +9,11 @@ from source_kintone.auth import KintoneAuthenticator
 from source_kintone.mapping import KINTONE_TO_AIRBYTE_MAPPING
 from source_kintone.utils import generate_mapping_result
 
+EXCLUDED_FIELDS = ["GROUP", "LABEL", "BLANK_SPACE", "REFERENCE_TABLE"]
 
 # Basic full refresh stream
+
+
 class KintoneStream(HttpStream, ABC):
   url_base = ""
 
@@ -45,9 +48,14 @@ class AppSchema(KintoneStream):
 
   def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
     app_schema: dict = response.json()['properties']
+
     # Remove unused properties from API response
+    def is_valid_property(value):
+      return ("enabled" not in value or value.get("enabled") == True) and (value["type"] not in EXCLUDED_FIELDS)
+
+    # Filter the properties based on the conditions provided by the `is_valid_property` function
     filter_app_schema = {
-        key: value for key, value in app_schema.items() if "enabled" not in value or value.get("enabled") == True
+        key: value for key, value in app_schema.items() if is_valid_property(value)
     }
 
     for key, value in filter_app_schema.items():
@@ -123,6 +131,8 @@ class AppDetail(KintoneStream):
   def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
     mapping_dict = {}
     app_records = response.json()['records']
+    total_count = response.json()['totalCount']
+    print(f"APP_{self.app_id} has {total_count} records")
 
     if not self.include_label:
       app_records_generator = generate_mapping_result(
@@ -136,8 +146,8 @@ class AppDetail(KintoneStream):
       app_schema_records = app_schema_stream.read_records(
           sync_mode="full_refresh")
       default_schema = {
-          "$id": {"type": ["null", "string"], "data_label": "$id"},
-          "$revision": {"type": ["null", "string"], "data_label": "$revision"},
+          "$id": {"type": ["null", "integer"], "data_label": "$id"},
+          "$revision": {"type": ["null", "integer"], "data_label": "$revision"},
       }
       for schema_property in app_schema_records:
         default_schema.update(schema_property)
@@ -168,8 +178,8 @@ class AppDetail(KintoneStream):
     # Each record corresponds to a property in the JSON Schema
     # Loop over each of these properties and add it to the JSON Schema
     default_schema = {
-        "$id": {"type": ["null", "string"], "data_label": "$id"},
-        "$revision": {"type": ["null", "string"], "data_label": "$revision"},
+        "$id": {"type": ["null", "integer"], "data_label": "$id"},
+        "$revision": {"type": ["null", "integer"], "data_label": "$revision"},
     }
     for schema_property in app_schema_records:
       default_schema.update(schema_property)

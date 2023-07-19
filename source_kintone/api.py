@@ -104,6 +104,21 @@ class Kintone:
         if matching_app is None:
           self.authentication_error = '存在していないアプリのアプリIDがあります。'
           break
+
+        # Log current app fields
+        self.logger.info(f"===========FIELDS IN APP_{item}===========")
+        get_app_field_url = f"{self.domain}/k/v1/app/form/fields.json?app={item}&lang=ja"
+        app_field_res = self.session.get(
+            url=get_app_field_url,
+            headers=self._get_standard_headers()
+        )
+        app_field = app_field_res.json().get('properties', [])
+        for key, value in app_field.items():
+          self.logger.info(
+              f"field_code: {key} -- field_type: {value['type']} -- field_label: {value['label']}")
+        self.logger.info(
+            f"===================END OF FIELD IN APP_{item}=======================")
+
         if matching_app['spaceId'] is None:
           # This app belongs to the current Organization
           continue
@@ -119,6 +134,7 @@ class Kintone:
         if space_detail_res.status_code is not SUCCESS_CODE:
           self.authentication_error = 'ゲストスペース内のアプリがあります。'
           break
+
     except requests.exceptions.RequestException as err:
       self.authentication_error = 'この情報では認証できません。'
       self.logger.warn(f"API Error: {err.response.text}")
