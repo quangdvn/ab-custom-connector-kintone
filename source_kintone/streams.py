@@ -79,13 +79,13 @@ class AppDetail(KintoneStream):
   http_method = "GET"
   primary_key = None
   page_size = 500
-  current_offset = 0
 
   def __init__(self, domain: str, app_id: str, include_label: bool, ** kwargs):
     super().__init__(**kwargs)
     self.domain = domain
     self.app_id = app_id
     self.include_label = include_label
+    self.current_offset = 0
 
   @property
   def name(self) -> str:
@@ -99,13 +99,13 @@ class AppDetail(KintoneStream):
     total_records = int(response.json()['totalCount'])
 
     # Assign offset value on every stream read
-    if total_records - AppDetail.current_offset > AppDetail.page_size:
-      offset = AppDetail.current_offset + AppDetail.page_size
-      AppDetail.current_offset += AppDetail.page_size
+    if total_records - self.current_offset > AppDetail.page_size:
+      offset = self.current_offset + AppDetail.page_size
+      self.current_offset += AppDetail.page_size
       return {"query": f"limit {AppDetail.page_size} offset {offset}"}
 
     # Last stream read
-    elif total_records - AppDetail.current_offset < AppDetail.page_size:
+    elif total_records - self.current_offset < AppDetail.page_size:
       return {}
 
   def request_params(
@@ -118,22 +118,24 @@ class AppDetail(KintoneStream):
 
     # Handle pagination by inserting the next page's token in the request parameters
     # First stream read
-    if AppDetail.current_offset == 0:
+    if self.current_offset == 0:
       params.update({"query": f"limit {AppDetail.page_size} offset 0"})
     else:
       if next_page_token:
         params.update(next_page_token)
       # Final stream read, next_page_token is None
       params.update(
-          {"query": f"limit {AppDetail.page_size} offset {AppDetail.current_offset}"})
+          {"query": f"limit {AppDetail.page_size} offset {self.current_offset}"})
     return params
 
   def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
     mapping_dict = {}
     app_records = response.json()['records']
     total_count = response.json()['totalCount']
-    print(f"From kintone: APP_{self.app_id} has {len(app_records)} records during this read")
+    print(
+        f"From kintone: APP_{self.app_id} has {len(app_records)} records during this read")
     print(f"From kintone: Count {total_count} records from APP_{self.app_id}")
+    print(f"Current offset: {self.current_offset}")
 
     if not self.include_label:
       app_records_generator = generate_mapping_result(
