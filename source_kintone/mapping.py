@@ -74,19 +74,8 @@ KINTONE_TO_AIRBYTE_MAPPING = {
     "MULTI_SELECT": {"type": ["null", "array"], "items": {"type": "string", }},
 
     # Assign as array of objects for now
-    "FILE": {
-        "type": ["null", "array"],
-        "items": {
-            "type": "object",
-            "additionalProperties": True,
-            "properties": {
-                "contentType": {"type": "string"},
-                "fileKey": {"type": "string"},
-                "name": {"type": "string"},
-                "size": {"type": "string"},
-            }
-        }
-    },
+    "FILE": {"type": ["null", "array"], "items": {"type": ["null", "string"]}},
+
     "LINK": {"type": ["null", "string"]},
     "DATE": {"type": ["null", "string"], "format": "date", "airbyte_type": "string", "airbyte_format": "%Y-%m-%d"},
 
@@ -99,7 +88,7 @@ KINTONE_TO_AIRBYTE_MAPPING = {
     # Assign as array of objects with undefined properties for now
     "ORGANIZATION_SELECT": {"type": ["null", "array"], "items": {"type": ["null", "string"]}},
     # Assign as array of objects with undefined properties for now
-    "GROUP_SELECT": {"type": ["null", "array"], "items": {"type": ["null", "object"]}},
+    "GROUP_SELECT": {"type": ["null", "array"], "items": {"type": ["null", "string"]}},
 
     # Assign as array of strings for now
     "CATEGORY": {"type": ["null", "array"], "items": {"type": ["null", "string"], }},

@@ -132,7 +132,8 @@ class AppDetail(KintoneStream):
     mapping_dict = {}
     app_records = response.json()['records']
     total_count = response.json()['totalCount']
-    print(f"APP_{self.app_id} has {total_count} records")
+    print(f"From kintone: APP_{self.app_id} has {len(app_records)} records during this read")
+    print(f"From kintone: Count {total_count} records from APP_{self.app_id}")
 
     if not self.include_label:
       app_records_generator = generate_mapping_result(
@@ -163,6 +164,8 @@ class AppDetail(KintoneStream):
 
     # Finally, convert the generator to a list
     records_response = list(app_records_generator)
+    print(
+        f"From Airbyte: Read from APP_{self.app_id} with {len(records_response)} records")
     yield from records_response
 
   def get_json_schema(self) -> Mapping[str, Any]:
